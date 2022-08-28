@@ -1,8 +1,10 @@
 package test.android.kiosk
 
+import android.app.Activity
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -10,6 +12,7 @@ import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,6 +22,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -26,7 +32,7 @@ import androidx.compose.ui.unit.dp
 
 class MainActivity : AppCompatActivity() {
     companion object {
-        private var manager: DevicePolicyManager? = null
+//        private var manager: DevicePolicyManager? = null
         private var isLocked = false
     }
 
@@ -63,41 +69,55 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        manager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        val manager = requireNotNull(manager)
-        val name = ComponentName(this, MainDeviceAdminReceiver::class.java)
-        log("isAdminActive: ${manager.isAdminActive(name)}")
-        if (manager.isDeviceOwnerApp(packageName)) {
-            log("isDeviceOwnerApp: true")
-            manager.setLockTaskPackages(name, arrayOf(packageName))
-        } else {
-            TODO()
-        }
-        setContent {
-            Box(modifier = Modifier.fillMaxSize()) {
-                Column(
+    @Composable
+    private fun Screen(manager: DevicePolicyManager) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.Center),
+            ) {
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .align(Alignment.Center),
+                        .background(Color.Blue)
+                        .clickable {
+                            switchLock(manager)
+                        }
+                        .padding(8.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.Blue)
-                            .clickable {
-                                switchLock(manager)
-                            }
-                            .padding(8.dp)
-                    ) {
-                        BasicText(
-                            modifier = Modifier.align(Alignment.Center),
-                            text = "test"
-                        )
-                    }
+                    BasicText(
+                        modifier = Modifier.align(Alignment.Center),
+                        text = "lock"
+                    )
                 }
             }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val manager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        val name = ComponentName(this, MainDeviceAdminReceiver::class.java)
+        val launcher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            log("on -> result: ${it.resultCode}")
+            if (it.resultCode == Activity.RESULT_OK) {
+                // todo
+            } else {
+                showToast("isAdminActive: false")
+                finish()
+            }
+        }
+        if (manager.isAdminActive(name)) {
+            setContent {
+                Screen(manager)
+            }
+        } else {
+            launcher.launch(
+                Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).also {
+                    it.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, name)
+                }
+            )
         }
     }
 }
